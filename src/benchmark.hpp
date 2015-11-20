@@ -3,35 +3,73 @@
 
 #include <vector>
 #include <functional>
+#include <algorithm>
 #include <iostream>
 #include <chrono>
 #include <ostream>
+#include <memory>
+
+typedef std::chrono::high_resolution_clock::duration microseconds;
+
+struct BenchmarkResult {
+	BenchmarkResult() {}
+
+	std::string description;
+	int cycles;
+	double duration_mean;
+	double duration_max;
+	double duration_min;
+
+private:
+	friend std::ostream& operator<<(std::ostream&, const BenchmarkResult&);
+};
+
+inline std::ostream& operator<<(std::ostream &os, const BenchmarkResult &br) {
+	return os << "----------------------------------------" << std::endl
+			  << br.description << std::endl
+			  << "----------------------------------------" << std::endl
+			  << "Min runtime:  " << br.duration_min << " ms" << std::endl
+			  << "Mean runtime: " << br.duration_mean << " ms" << std::endl
+			  << "Max runtime:  " << br.duration_max << " ms" << std::endl;
+}
 
 class Benchmark {
 public:
-	typedef std::chrono::microseconds microseconds;
-
-	Benchmark(std::function<void(int)> f, std::string descr, int i) : description(descr), func(f), cycles(i) { }
-
-	void operator()() {
-		func(cycles);
+	Benchmark(std::function<void(int, std::shared_ptr<std::vector<microseconds>>)> f, std::string descr, int i) : description(descr), func(f), cycles(i) {
+		ms = std::make_shared<std::vector<microseconds>>();
 	}
 
-	std::ostream result();
+	BenchmarkResult operator()() {
+		func(cycles, ms);
+		return result();
+	}
+
+	BenchmarkResult result() {
+		BenchmarkResult res;
+		res.description = description;
+		res.duration_mean = mean_microseconds();
+		auto minmax = std::minmax_element(ms->cbegin(), ms->cend());
+		res.duration_min = std::chrono::duration_cast<std::chrono::microseconds>(*(minmax.first)).count();
+		res.duration_max = std::chrono::duration_cast<std::chrono::microseconds>(*(minmax.second)).count();
+		res.cycles = cycles;
+
+		return res;
+	}
 
 private:
-	std::vector<microseconds> ms;
+	std::shared_ptr<std::vector<microseconds>> ms;
 	std::string description;
-	std::function<void(int)> func;
+	std::function<void(int, std::shared_ptr<std::vector<microseconds>>)> func;
 	int cycles;
 
 	double mean_microseconds() {
 		double sum = 0.0;
-		for (auto iter = ms.cbegin(); iter != ms.cend(); ++iter) {
-			sum += iter->count();
+		for (auto iter = ms->cbegin(); iter != ms->cend(); ++iter) {
+			auto dur = std::chrono::duration_cast<std::chrono::microseconds>(*iter);
+			sum += dur.count();
 		}
 
-		return sum / ms.size();
+		return sum / ms->size();
 	}
 };
 
@@ -62,7 +100,8 @@ public:
 
 	void run() {
 		for (auto benchmark : x) {
-			benchmark();
+			auto res = benchmark();
+			std::cout << res << std::endl;
 		}
 	}
 };
@@ -80,11 +119,11 @@ std::cout << "number of registered benchmarks: " << Benchmarks::get_instance().n
 Benchmarks::get_instance().run();
 
 #define INTERNAL_BENCHMARK( function_name, description, cycles ) \
-static void function_name(int __openbenchmark__internal__cycles); \
+static void function_name(int __openbenchmark__internal__cycles, std::shared_ptr<std::vector<microseconds>> __openbenchmark__internal__ms); \
 namespace{ \
 	auto INTERNAL_NAMESPACE_NAME(bm, __LINE__) = Benchmarks::register_benchmark(Benchmark(&function_name, description, cycles)); \
 }; \
-static void function_name(int __openbenchmark__internal__cycles)
+static void function_name(int __openbenchmark__internal__cycles, std::shared_ptr<std::vector<microseconds>> __openbenchmark__internal__ms)
 
 #define BENCHMARK( description, cycles ) INTERNAL_BENCHMARK(MAKE_BENCHMARK_NAME(benchmark_function__), description, cycles)
 
@@ -94,8 +133,8 @@ while (i < __openbenchmark__internal__cycles) { \
 	auto start = std::chrono::high_resolution_clock::now(); \
 	x; \
 	auto diff = std::chrono::high_resolution_clock::now() - start; \
-	std::cout << std::chrono::duration_cast<std::chrono::microseconds>(diff).count() << "ms" << std::endl; \
-	i++;\
+	__openbenchmark__internal__ms->push_back(diff);\
+	++i;\
 }
 
 #endif /* SRC_BENCHMARK_HPP_ */

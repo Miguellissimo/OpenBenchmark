@@ -22,5 +22,14 @@ BENCHMARK("Benchmark test to measure multiple statements", 4) {
 
 int main() {
 	RUN_BENCHMARKS();
+
+	/*
+
+	console_reporter cr;
+	OpenBenchmark ob(cr);
+	ob.run_benchmarks();
+
+	 */
+
 	return 0;
 }
