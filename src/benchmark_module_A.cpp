@@ -1,4 +1,3 @@
-
 #include "module_A.h"
 #include "benchmark.hpp"
 

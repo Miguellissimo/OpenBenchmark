@@ -25,13 +25,34 @@ private:
 };
 
 inline std::ostream& operator<<(std::ostream &os, const BenchmarkResult &br) {
-	return os << "----------------------------------------" << std::endl
+	return os << "-------------------------------------------------------------" << std::endl
 			  << br.description << std::endl
-			  << "----------------------------------------" << std::endl
+			  << "-------------------------------------------------------------" << std::endl
+			  << "Cycles: " << br.cycles << std::endl
 			  << "Min runtime:  " << br.duration_min << " ms" << std::endl
 			  << "Mean runtime: " << br.duration_mean << " ms" << std::endl
-			  << "Max runtime:  " << br.duration_max << " ms" << std::endl;
+			  << "Max runtime:  " << br.duration_max << " ms" << std::endl
+			  << "-------------------------------------------------------------" << std::endl;
 }
+
+class Reporter {
+public:
+	virtual ~Reporter() { };
+	virtual void initialize() { };
+	virtual void report(BenchmarkResult) { };
+	virtual void end() { };
+};
+
+class ConsoleReporter : public Reporter {
+public:
+	void initialize() { }
+
+	void report(BenchmarkResult br) {
+		std::cout << br << std::endl;
+	}
+
+	void end() { }
+};
 
 class Benchmark {
 public:
@@ -73,19 +94,22 @@ private:
 	}
 };
 
-class Benchmarks {
+class BenchmarkPool {
 private:
-	Benchmarks() {};
+	BenchmarkPool() {};
+	BenchmarkPool(BenchmarkPool const&) = delete;
+	void operator=(BenchmarkPool const&) = delete;
 	std::vector<Benchmark> x;
+	Reporter *reporter;
 
 public:
-	static Benchmarks& get_instance() {
-		static Benchmarks instance;
+	static BenchmarkPool& get_instance() {
+		static BenchmarkPool instance;
 		return instance;
 	}
 
 	static int register_benchmark(Benchmark b) {
-		Benchmarks &inst = Benchmarks::get_instance();
+		BenchmarkPool &inst = BenchmarkPool::get_instance();
 		inst.add(b);
 		return 1;
 	}
@@ -94,15 +118,36 @@ public:
 		x.push_back(b);
 	}
 
+	void set_reporter(Reporter *r) {
+		reporter = r;
+	}
+
 	int number_of_benchmarks() {
 		return x.size();
 	}
 
 	void run() {
+		reporter->initialize();
 		for (auto benchmark : x) {
 			auto res = benchmark();
 			std::cout << res << std::endl;
+			reporter->report(res);
 		}
+		reporter->end();
+	}
+};
+
+class OpenBenchmark {
+public:
+	OpenBenchmark() : OpenBenchmark(new ConsoleReporter()) { }
+
+	OpenBenchmark(Reporter *r) {
+		BenchmarkPool *bp = &BenchmarkPool::get_instance();
+		bp->set_reporter(r);
+	}
+
+	void run_benchmarks() {
+		BenchmarkPool::get_instance().run();
 	}
 };
 
@@ -114,14 +159,14 @@ public:
 #define MAKE_BENCHMARK_NAME( name ) INTERNAL_BENCHMARK_NAME( name, __LINE__ )
 
 #define RUN_BENCHMARKS() \
-Benchmarks::get_instance(); \
-std::cout << "number of registered benchmarks: " << Benchmarks::get_instance().number_of_benchmarks() << std::endl; \
-Benchmarks::get_instance().run();
+BenchmarkPool::get_instance(); \
+std::cout << "number of registered benchmarks: " << BenchmarkPool::get_instance().number_of_benchmarks() << std::endl; \
+BenchmarkPool::get_instance().run();
 
 #define INTERNAL_BENCHMARK( function_name, description, cycles ) \
 static void function_name(int __openbenchmark__internal__cycles, std::shared_ptr<std::vector<microseconds>> __openbenchmark__internal__ms); \
 namespace{ \
-	auto INTERNAL_NAMESPACE_NAME(bm, __LINE__) = Benchmarks::register_benchmark(Benchmark(&function_name, description, cycles)); \
+	auto INTERNAL_NAMESPACE_NAME(bm, __LINE__) = BenchmarkPool::register_benchmark(Benchmark(&function_name, description, cycles)); \
 }; \
 static void function_name(int __openbenchmark__internal__cycles, std::shared_ptr<std::vector<microseconds>> __openbenchmark__internal__ms)
 

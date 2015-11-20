@@ -6,7 +6,7 @@
 #include "benchmark.hpp"
 
 BENCHMARK("A benchmark test in its simplest form", 2) {
-	MEASURE( std::cout << "second benchmark" << std::endl )
+	MEASURE( std::cout << "second benchmark" << std::endl );
 }
 
 BENCHMARK("Benchmark test to measure multiple statements", 4) {
@@ -17,19 +17,13 @@ BENCHMARK("Benchmark test to measure multiple statements", 4) {
 		std::cout << "Statement 3" << std::endl;
 	};
 
-	MEASURE( f() )
+	MEASURE( f() );
 }
 
 int main() {
-	RUN_BENCHMARKS();
 
-	/*
-
-	console_reporter cr;
-	OpenBenchmark ob(cr);
+	OpenBenchmark ob;
 	ob.run_benchmarks();
-
-	 */
 
 	return 0;
 }
