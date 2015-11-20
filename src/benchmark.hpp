@@ -11,12 +11,10 @@ class Benchmark {
 public:
 	typedef std::chrono::microseconds microseconds;
 
-	Benchmark(std::function<void(int)> f, std::string descr) : description(descr), func(f), cycles(10) { }
+	Benchmark(std::function<void(int)> f, std::string descr, int i) : description(descr), func(f), cycles(i) { }
 
 	void operator()() {
-		//for (auto i = 0; i != cycles; ++i) {
 		func(cycles);
-		//}
 	}
 
 	std::ostream result();
@@ -40,7 +38,7 @@ private:
 class Benchmarks {
 private:
 	Benchmarks() {};
-	std::vector<std::function<void(int)>> x;
+	std::vector<Benchmark> x;
 
 public:
 	static Benchmarks& get_instance() {
@@ -48,14 +46,14 @@ public:
 		return instance;
 	}
 
-	static int register_benchmark(std::function<void(int)> f) {
+	static int register_benchmark(Benchmark b) {
 		Benchmarks &inst = Benchmarks::get_instance();
-		inst.add(f);
+		inst.add(b);
 		return 1;
 	}
 
-	void add(std::function<void(int)> f) {
-		x.push_back(f);
+	void add(Benchmark b) {
+		x.push_back(b);
 	}
 
 	int number_of_benchmarks() {
@@ -63,10 +61,8 @@ public:
 	}
 
 	void run() {
-		for (auto func : x) {
-			if (func != nullptr) {
-				func(10);
-			}
+		for (auto benchmark : x) {
+			benchmark();
 		}
 	}
 };
@@ -83,14 +79,14 @@ Benchmarks::get_instance(); \
 std::cout << "number of registered benchmarks: " << Benchmarks::get_instance().number_of_benchmarks() << std::endl; \
 Benchmarks::get_instance().run();
 
-#define INTERNAL_BENCHMARK( function_name, description ) \
+#define INTERNAL_BENCHMARK( function_name, description, cycles ) \
 static void function_name(int __openbenchmark__internal__cycles); \
 namespace{ \
-	auto INTERNAL_NAMESPACE_NAME(bm, __LINE__) = Benchmarks::register_benchmark(&function_name); \
+	auto INTERNAL_NAMESPACE_NAME(bm, __LINE__) = Benchmarks::register_benchmark(Benchmark(&function_name, description, cycles)); \
 }; \
 static void function_name(int __openbenchmark__internal__cycles)
 
-#define BENCHMARK( description ) INTERNAL_BENCHMARK(MAKE_BENCHMARK_NAME(benchmark_function__), description)
+#define BENCHMARK( description, cycles ) INTERNAL_BENCHMARK(MAKE_BENCHMARK_NAME(benchmark_function__), description, cycles)
 
 #define MEASURE(x) \
 int i = 0; \

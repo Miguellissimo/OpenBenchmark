@@ -5,11 +5,11 @@
 #include <memory>
 #include "benchmark.hpp"
 
-BENCHMARK("A benchmark test in its simplest form") {
+BENCHMARK("A benchmark test in its simplest form", 2) {
 	MEASURE( std::cout << "second benchmark" << std::endl )
 }
 
-BENCHMARK("Benchmark test to measure multiple statements") {
+BENCHMARK("Benchmark test to measure multiple statements", 4) {
 
 	auto f = []() {
 		std::cout << "Statement 1" << std::endl;
